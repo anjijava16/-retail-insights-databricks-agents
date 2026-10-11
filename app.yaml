@@ -1,0 +1,14 @@
+# Read by Databricks Apps when the app container starts.
+command: ["streamlit", "run", "src/retail_insights/app/streamlit_app.py"]
+
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse          # resolved from resources/apps.yml
+  - name: SERVING_ENDPOINT
+    valueFrom: serving-endpoint
+  - name: RETAIL_CATALOG
+    value: workspace
+  # RETAIL_SCHEMA is derived from the app name (retail-insights-<target>) so one
+  # app.yaml serves dev, staging and prod. Set it here to override.
+  - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+    value: "false"

@@ -1,0 +1,80 @@
+# Databricks Asset Bundle: the single entry point the Databricks CLI reads.
+# It names the bundle, pulls in resource files, builds the wheel, and defines
+# per-environment settings (targets).
+#
+#   databricks bundle validate -t dev
+#   databricks bundle deploy   -t dev
+#   databricks bundle run retail_etl -t dev
+#   databricks bundle run retail_app -t dev      # starts the app and deploys its code
+
+bundle:
+  name: retail-insights
+
+include:
+  - resources/*.yml
+
+# Built locally (or in CI) before upload. Jobs reference it as ../dist/*.whl
+artifacts:
+  python_artifact:
+    type: whl
+    build: uv build --wheel
+    path: .
+
+variables:
+  catalog:
+    description: Unity Catalog catalog that holds the retail schema
+    default: workspace
+  schema:
+    description: Schema for this environment (set per target below)
+    default: retail_dev
+  warehouse_id:
+    description: SQL warehouse used by the app and the agent eval
+    lookup:
+      warehouse: "Serverless Starter Warehouse"
+  llm_endpoint:
+    description: Model Serving endpoint (OpenAI-compatible chat) the agent calls
+    default: databricks-meta-llama-3-3-70b-instruct
+  etl_days:
+    description: Days of synthetic sales the generator lands per run
+    default: "30"
+  etl_schedule_status:
+    description: PAUSED or UNPAUSED for the daily ETL schedule
+    default: PAUSED
+
+sync:
+  exclude:
+    - ".venv/**"
+    - "dist/**"
+    - "tests/**"
+    - ".github/**"
+    - "**/__pycache__/**"
+
+targets:
+  dev:
+    # development mode: resources are prefixed with [dev <you>], schedules are
+    # paused, and you deploy to your own folder. Safe to experiment.
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-d40d7b72-eeb2.cloud.databricks.com
+    variables:
+      schema: retail_dev
+
+  staging:
+    workspace:
+      host: https://dbc-d40d7b72-eeb2.cloud.databricks.com
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      schema: retail_staging
+
+  prod:
+    # production mode: refuses to deploy from a dirty dev setup, keeps names
+    # stable, and leaves schedules as configured.
+    mode: production
+    workspace:
+      host: https://dbc-d40d7b72-eeb2.cloud.databricks.com
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      schema: retail_prod
+      etl_days: "3"
+      etl_schedule_status: UNPAUSED

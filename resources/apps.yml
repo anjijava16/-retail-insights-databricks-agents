@@ -1,0 +1,27 @@
+# Registers the Databricks App. HOW it runs (command, env) lives in app.yaml at
+# the repo root; this file only says the app exists, where its code is, and which
+# workspace resources it may use.
+#
+# Note: `bundle deploy` creates/updates the app but does not start compute.
+# `databricks bundle run retail_app -t <target>` starts it and deploys the code.
+
+resources:
+  apps:
+    retail_app:
+      name: retail-insights-${bundle.target}
+      description: Chat with your retail data. Tool-calling agent over the gold tables.
+      source_code_path: ..
+
+      # Each entry becomes something app.yaml can read with `valueFrom: <name>`,
+      # and grants the app's service principal the stated permission.
+      resources:
+        - name: sql-warehouse
+          description: Warehouse the agent runs SQL on
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+        - name: serving-endpoint
+          description: Chat model behind the agent
+          serving_endpoint:
+            name: ${var.llm_endpoint}
+            permission: CAN_QUERY

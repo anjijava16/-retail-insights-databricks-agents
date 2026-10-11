@@ -1,0 +1,89 @@
+# Manual deploy to a chosen environment. Protect `prod` with required reviewers
+# in Settings -> Environments so a deploy waits for approval.
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Bundle target
+        type: choice
+        options: [dev, staging, prod]
+        default: dev
+      run_etl:
+        description: Run the ETL job after deploy
+        type: boolean
+        default: true
+      run_eval:
+        description: Run the live agent eval after deploy
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write   # only needed if you switch to GitHub OIDC federation (see README)
+
+concurrency:
+  group: deploy-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy to ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST || 'https://dbc-d40d7b72-eeb2.cloud.databricks.com' }}
+      # OAuth machine-to-machine with a service principal.
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      # Alternative, no stored secret: create a federation policy for this repo on
+      # the service principal, delete the CLIENT_SECRET line above and set:
+      # DATABRICKS_AUTH_TYPE: github-oidc
+      TARGET: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv (builds the wheel during deploy)
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+
+      - name: Who am I
+        run: databricks current-user me -o json | jq -r '.userName'
+
+      - name: Validate bundle
+        run: databricks bundle validate -t "$TARGET"
+
+      - name: Deploy bundle (wheel, jobs, app registration)
+        run: databricks bundle deploy -t "$TARGET" --auto-approve
+
+      - name: Run ETL job
+        if: inputs.run_etl
+        run: databricks bundle run retail_etl -t "$TARGET"
+
+      - name: Grant the app read access to the schema
+        run: |
+          uv run --no-dev retail-grant-app --app-name "retail-insights-$TARGET" \
+            --catalog workspace --schema "retail_$TARGET"
+
+      - name: Start app and deploy its code
+        run: databricks bundle run retail_app -t "$TARGET"
+
+      - name: Live agent eval
+        if: inputs.run_eval
+        run: databricks bundle run retail_agent_eval -t "$TARGET"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Deployed \`$TARGET\`"
+            echo ""
+            echo '```'
+            databricks bundle summary -t "$TARGET" || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
