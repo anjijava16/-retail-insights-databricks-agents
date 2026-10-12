@@ -61,6 +61,9 @@ jobs:
 
       - name: Validate bundle
         run: databricks bundle validate -t "$TARGET"
+      
+      - name: destroy bundle
+        run: databricks bundle destroy -t "$TARGET"
 
       - name: Deploy bundle (wheel, jobs, app registration)
         run: databricks bundle deploy -t "$TARGET" --auto-approve
