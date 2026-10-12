@@ -1,5 +1,9 @@
 # Manual deploy to a chosen environment. Protect `prod` with required reviewers
 # in Settings -> Environments so a deploy waits for approval.
+#
+# This workflow runs ONLY via manual dispatch (Actions tab -> CD -> Run workflow,
+# or `gh workflow run cd.yml`). The "Run workflow" button appears once this file
+# exists on the default branch and GitHub has registered it.
 name: CD
 
 on:
