@@ -15,4 +15,25 @@ spark-warehouse/
 metastore_db/
 derby.log
 .DS_Store
+
+# Local tooling / IDE (may contain session traces or machine-specific settings)
+.monocle/
+.vscode/
+
+# Secrets, tokens and credentials (never commit)
 .env
+.env.*
+!.env.example
+*.env
+.databrickscfg
+*.databrickscfg
+.databricks-login.json
+.databricks/token
+.zprofile.sh
+*.zprofile.sh
+Login_All_steps.md
+*secret*
+*token*
+*.pat
+*.pem
+*.key
